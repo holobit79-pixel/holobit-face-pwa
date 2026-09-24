@@ -37,7 +37,7 @@ button:disabled{opacity:.5}
 <body>
 <main>
   <h1>HoloBit 采脸 <span id="holdPill" class="pill">未保温</span></h1>
-  <p class="sub">打开即采并保温。可粘贴房间门牌后双边对戳（网页用 ICE 检查发包，不当 VPN）。</p>
+  <p class="sub">打开即采并保温。脸是短命的：每次重采端口会变，必须重发火花；只对戳「保温中」的活脸（不当 VPN）。</p>
 
   <div class="card">
     <label for="stun">STUN（国内优先）</label>
@@ -50,14 +50,14 @@ button:disabled{opacity:.5}
     </select>
     <div class="row">
       <button id="go" type="button">重新采脸并保温</button>
-      <button id="share" class="secondary" type="button" disabled>分享火花</button>
-      <button id="copy" class="secondary" type="button" disabled>复制火花</button>
+      <button id="share" class="secondary" type="button" disabled>分享新火花</button>
+      <button id="copy" class="secondary" type="button" disabled>复制新火花</button>
     </div>
     <div id="status">准备中…</div>
   </div>
 
   <div class="card">
-    <label>我的公网门牌（保温中请勿关页）</label>
+    <label>我的活脸（短命；保温中请勿关页；重采后旧火花作废）</label>
     <div id="faces">（还没有）</div>
   </div>
 
@@ -69,7 +69,7 @@ button:disabled{opacity:.5}
       <button id="stopPunch" class="secondary" type="button" disabled>停止对戳</button>
     </div>
     <div id="punchStatus">先采脸保温，再粘贴房间门牌。</div>
-    <p class="hint">对戳时手机会向房间门牌发 ICE/STUN 探测；请保持本页在前台约 1 分钟。</p>
+    <p class="hint">倒置：优先手机向外戳、房间听。必须用当前保温的同一 PeerConnection；重采脸后请先分享/复制新火花再戳。</p>
   </div>
 
   <div class="card">
@@ -101,6 +101,8 @@ button:disabled{opacity:.5}
   let lastSpark = '';
   let punchTimer = null;
   let gathering = false;
+  let faceGen = 0;
+  let sessionSticky = null;
 
   function setStatus(el, text, kind) {
     el.textContent = text;
@@ -111,25 +113,30 @@ button:disabled{opacity:.5}
     crypto.getRandomValues(a);
     return Array.from(a, b => b.toString(16).padStart(2, '0')).join('');
   }
-  function buildSpark(faces) {
+  sessionSticky = sessionId();
+  function buildSpark(faces, reason) {
     const payload = {
       v: 'holobit-spark/v1',
       role: 'phone',
       ts: Math.floor(Date.now() / 1000),
-      session: sessionId(),
-      reason: 'pwa-hold',
+      session: sessionSticky,
+      reason: reason || 'pwa-hold',
       faces: faces,
+      face_gen: faceGen,
+      held: !!(pc && faces.length),
       stun: [{ server: stunEl.value, ok: faces.length > 0 }],
-      note: 'spark!=data; PWA hold+ICE punch',
+      note: 'ephemeral face; not a doorplate; spark!=data; refresh on every gather',
       nonce: sessionId(),
       pubkey: null
     };
     return PREFIX + ' ' + JSON.stringify(payload);
   }
-  function showFaces(faces) {
+  function showFaces(faces, reason) {
     lastFaces = faces;
-    lastSpark = faces.length ? buildSpark(faces) : '';
-    facesEl.textContent = faces.length ? faces.join('\n') : '（没有公网门牌）';
+    lastSpark = faces.length ? buildSpark(faces, reason) : '';
+    facesEl.textContent = faces.length
+      ? ('gen#' + faceGen + ' (活)\n' + faces.join('\n'))
+      : '（没有活脸）';
     shareBtn.disabled = !faces.length;
     copyBtn.disabled = !faces.length;
     punchBtn.disabled = !(faces.length && pc);
@@ -188,15 +195,16 @@ button:disabled{opacity:.5}
     pc.onicecandidate = (ev) => {
       if (!ev.candidate) {
         const uniq = [...new Set(found)];
-        showFaces(uniq);
+        if (uniq.length) faceGen += 1;
+        showFaces(uniq, faceGen > 1 ? 'face-change' : 'pwa-hold');
         goBtn.disabled = false;
         gathering = false;
         if (uniq.length) {
           setHold(true);
-          setStatus(statusEl, '采脸成功并保温中，共 ' + uniq.length + ' 个门牌。请勿关页。', 'ok');
+          setStatus(statusEl, '采脸成功并保温中 gen#' + faceGen + '，共 ' + uniq.length + ' 个活脸。请立刻分享/复制新火花（旧火花已作废）。', 'ok');
         } else {
           setHold(false);
-          setStatus(statusEl, '没有公网门牌，可换 STUN 再试。', 'bad');
+          setStatus(statusEl, '没有公网活脸，可换 STUN 再试。', 'bad');
         }
         return;
       }
@@ -206,8 +214,8 @@ button:disabled{opacity:.5}
         const face = m[1] + ':' + m[2];
         if (!found.includes(face)) {
           found.push(face);
-          showFaces([...found]);
-          setStatus(statusEl, '已找到门牌 ' + found.length + ' 个…', 'ok');
+          showFaces([...found], 'pwa-hold');
+          setStatus(statusEl, '已找到活脸 ' + found.length + ' 个…', 'ok');
         }
       }
     };
@@ -225,12 +233,13 @@ button:disabled{opacity:.5}
         gathering = false;
         goBtn.disabled = false;
         const uniq = [...new Set(found)];
-        showFaces(uniq);
+        if (uniq.length) faceGen += 1;
+        showFaces(uniq, faceGen > 1 ? 'face-change' : 'pwa-hold');
         if (uniq.length) {
           setHold(true);
-          setStatus(statusEl, '采脸超时结束，已保温 ' + uniq.length + ' 个门牌。', 'ok');
+          setStatus(statusEl, '采脸超时结束，已保温 gen#' + faceGen + ' · ' + uniq.length + ' 个活脸。请重发火花。', 'ok');
         } else {
-          setStatus(statusEl, '超时仍无公网门牌。', 'bad');
+          setStatus(statusEl, '超时仍无公网活脸。', 'bad');
         }
       }
     }, 12000);
@@ -238,7 +247,7 @@ button:disabled{opacity:.5}
 
   async function startPunch() {
     if (!pc || !lastFaces.length) {
-      setStatus(punchStatusEl, '请先采脸并保温。', 'bad');
+      setStatus(punchStatusEl, '请先采脸并保温（必须同一 PeerConnection 活脸）。', 'bad');
       return;
     }
     const rooms = parseRoomFaces(roomFacesEl.value);
@@ -247,7 +256,7 @@ button:disabled{opacity:.5}
       return;
     }
     stopPunch(false);
-    setStatus(punchStatusEl, '对戳中：向 ' + rooms.length + ' 个房间门牌发 ICE 探测…');
+    setStatus(punchStatusEl, '倒置对戳中 gen#' + faceGen + '：手机向外 → ' + rooms.length + ' 个房间活脸（请确认已分享本轮火花）…');
     punchBtn.disabled = true;
     stopPunchBtn.disabled = false;
 
