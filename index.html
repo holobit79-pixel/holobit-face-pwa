@@ -6,9 +6,8 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="apple-mobile-web-app-title" content="HoloBit脸"/>
-<meta name="mobile-web-app-capable" content="yes"/>
 <meta name="theme-color" content="#111111"/>
-<title>HoloBit 采脸</title>
+<title>HoloBit 采脸 v4</title>
 <link rel="manifest" href="manifest.webmanifest"/>
 <style>
 :root{--bg:#0f1115;--card:#1a1e26;--txt:#f2f4f8;--muted:#9aa3b2;--acc:#5b8cff;--ok:#3dd68c;--bad:#ff6b6b}
@@ -19,25 +18,30 @@ h1{font-size:1.35rem;margin:8px 0 4px}
 .sub{color:var(--muted);font-size:.95rem;margin:0 0 16px}
 .card{background:var(--card);border-radius:14px;padding:14px;margin:12px 0}
 label{display:block;font-size:.85rem;color:var(--muted);margin-bottom:6px}
-select,input,textarea{width:100%;padding:12px;border-radius:10px;border:1px solid #2a3140;background:#12151c;color:var(--txt);font-size:1rem}
+select,textarea{width:100%;padding:12px;border-radius:10px;border:1px solid #2a3140;background:#12151c;color:var(--txt);font-size:1rem}
 textarea{min-height:96px;font-family:ui-monospace,Menlo,monospace;font-size:.9rem}
 .row{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
 button{flex:1;min-width:120px;border:0;border-radius:12px;padding:14px 12px;font-size:1.05rem;font-weight:600;background:var(--acc);color:#fff}
 button.secondary{background:#2a3140}
 button:disabled{opacity:.5}
-#status,#punchStatus{font-size:.95rem;margin-top:8px}
-.ok{color:var(--ok)} .bad{color:var(--bad)}
+#status,#punchStatus,#stabDetail{font-size:.95rem;margin-top:8px}
+.ok{color:var(--ok)}.bad{color:var(--bad)}
 #faces{white-space:pre-wrap;word-break:break-all;font-family:ui-monospace,Menlo,monospace;font-size:.92rem;min-height:3.2rem}
 .hint{font-size:.88rem;color:var(--muted);margin-top:10px}
 .steps{font-size:.9rem;color:var(--muted);padding-left:1.1rem}
-.steps li{margin:4px 0}
 .pill{display:inline-block;padding:2px 8px;border-radius:999px;background:#2a3140;font-size:.8rem;margin-left:6px}
+.stab{font-size:1.1rem;font-weight:700;padding:12px;border-radius:12px;background:#12151c;border:1px solid #2a3140;margin-top:8px}
+.stab.same{border-color:var(--ok);color:var(--ok)}
+.stab.changed{border-color:var(--bad);color:var(--bad);background:#2a1518}
+.stab.idle{color:var(--muted)}
+.mono{font-family:ui-monospace,Menlo,monospace;word-break:break-all}
+.ver{font-size:.75rem;color:var(--muted)}
 </style>
 </head>
 <body>
 <main>
   <h1>HoloBit 采脸 <span id="holdPill" class="pill">未保温</span></h1>
-  <p class="sub">打开即采并保温。脸是短命的：每次重采端口会变，必须重发火花；只对戳「保温中」的活脸（不当 VPN）。</p>
+  <p class="sub">打开即采并保温。脸短命：重采端口会变，必须重发火花；只对戳「保温中」活脸（不当 VPN）。<span class="ver">ui=v4</span></p>
 
   <div class="card">
     <label for="stun">STUN（国内优先）</label>
@@ -57,129 +61,284 @@ button:disabled{opacity:.5}
   </div>
 
   <div class="card">
-    <label>我的活脸（短命；保温中请勿关页；重采后旧火花作废）</label>
+    <label>脸稳定仪表（不重采也能看见有没有变）</label>
+    <div id="stabBanner" class="stab idle">尚未采脸</div>
+    <div id="stabDetail" class="hint">采成功后锁定基准脸；每 5 秒用同一 PeerConnection 的 getStats 核对。IP/端口一变这里变红。</div>
+    <div class="row">
+      <button id="confirmFace" class="secondary" type="button" disabled>只读确认（不重采）</button>
+    </div>
+    <p class="hint">能显示：浏览器仍握着的 srflx 门牌变了。不能保证：运营商 NAT 已死但本机候选没变——那种靠短窗探针，且不要点重新采脸。</p>
+  </div>
+
+  <div class="card">
+    <label>我的活脸（保温中请勿关页；重采后旧火花作废）</label>
     <div id="faces">（还没有）</div>
   </div>
 
   <div class="card">
     <label for="roomFaces">房间门牌（Scout 发给你的，一行一个 IP:端口）</label>
-    <textarea id="roomFaces" placeholder="例如：&#10;44.219.165.130:20969&#10;32.192.139.229:44770"></textarea>
+    <textarea id="roomFaces" placeholder="例如：&#10;44.219.165.130:20969"></textarea>
     <div class="row">
       <button id="punch" type="button" disabled>开始对戳</button>
       <button id="stopPunch" class="secondary" type="button" disabled>停止对戳</button>
     </div>
     <div id="punchStatus">先采脸保温，再粘贴房间门牌。</div>
-    <p class="hint">倒置：优先手机向外戳、房间听。必须用当前保温的同一 PeerConnection；重采脸后请先分享/复制新火花再戳。</p>
+    <p class="hint">倒置：手机向外戳、房间听。必须用当前保温的同一 PeerConnection。</p>
   </div>
 
   <div class="card">
     <label>第一次装到主屏幕</label>
     <ol class="steps">
-      <li>用 Safari 打开本页。</li>
-      <li>底部分享 → 添加到主屏幕。</li>
-      <li>快捷指令可用「打开 URL」指向本页。</li>
+      <li>Safari 打开本页（URL 带 <span class="mono">?v=4</span>）。</li>
+      <li>分享 → 添加到主屏幕。</li>
+      <li>快捷指令请指向带 <span class="mono">?v=4</span> 的地址。</li>
     </ol>
   </div>
 </main>
 <script>
 (function () {
-  const PREFIX = 'HOLObit-SPARK';
-  const stunEl = document.getElementById('stun');
-  const statusEl = document.getElementById('status');
-  const punchStatusEl = document.getElementById('punchStatus');
-  const facesEl = document.getElementById('faces');
-  const roomFacesEl = document.getElementById('roomFaces');
-  const holdPill = document.getElementById('holdPill');
-  const goBtn = document.getElementById('go');
-  const shareBtn = document.getElementById('share');
-  const copyBtn = document.getElementById('copy');
-  const punchBtn = document.getElementById('punch');
-  const stopPunchBtn = document.getElementById('stopPunch');
+  var PREFIX = 'HOLObit-SPARK';
+  var UI = 'v4';
+  var stunEl = document.getElementById('stun');
+  var statusEl = document.getElementById('status');
+  var punchStatusEl = document.getElementById('punchStatus');
+  var facesEl = document.getElementById('faces');
+  var roomFacesEl = document.getElementById('roomFaces');
+  var holdPill = document.getElementById('holdPill');
+  var goBtn = document.getElementById('go');
+  var shareBtn = document.getElementById('share');
+  var copyBtn = document.getElementById('copy');
+  var punchBtn = document.getElementById('punch');
+  var stopPunchBtn = document.getElementById('stopPunch');
+  var confirmBtn = document.getElementById('confirmFace');
+  var stabBanner = document.getElementById('stabBanner');
+  var stabDetail = document.getElementById('stabDetail');
 
-  let pc = null;
-  let lastFaces = [];
-  let lastSpark = '';
-  let punchTimer = null;
-  let gathering = false;
-  let faceGen = 0;
-  let sessionSticky = null;
+  var pc = null;
+  var lastFaces = [];
+  var lastSpark = '';
+  var punchTimer = null;
+  var stabTimer = null;
+  var gathering = false;
+  var faceGen = 0;
+  var sessionId = randHex(8);
+  var baselineFaces = [];
+  var baselineKey = '';
+  var holdStartedAt = 0;
+  var lastCheckAt = 0;
+  var faceChanged = false;
+  var changeReason = '';
 
   function setStatus(el, text, kind) {
     el.textContent = text;
     el.className = kind || '';
   }
-  function sessionId() {
-    const a = new Uint8Array(8);
+  function randHex(n) {
+    var a = new Uint8Array(n);
     crypto.getRandomValues(a);
-    return Array.from(a, b => b.toString(16).padStart(2, '0')).join('');
+    return Array.from(a, function (b) { return b.toString(16).padStart(2, '0'); }).join('');
   }
-  sessionSticky = sessionId();
+  function faceKey(faces) {
+    return (faces || []).slice().sort().join('|');
+  }
+  function heldSec() {
+    return holdStartedAt ? Math.floor((Date.now() - holdStartedAt) / 1000) : 0;
+  }
+  function fmt(faces) {
+    return (faces && faces.length) ? faces.join('\n') : '（无）';
+  }
+
+  function paintStab(cur, note) {
+    var held = heldSec();
+    var age = lastCheckAt ? Math.floor((Date.now() - lastCheckAt) / 1000) : 0;
+    cur = cur || lastFaces;
+    if (!baselineKey) {
+      stabBanner.className = 'stab idle';
+      stabBanner.textContent = '尚未锁定基准脸';
+      stabDetail.textContent = note || '采脸成功后会自动锁定。';
+      return;
+    }
+    if (faceChanged || (cur.length && faceKey(cur) !== baselineKey)) {
+      faceChanged = true;
+      stabBanner.className = 'stab changed';
+      stabBanner.textContent = '端口/脸已变 · gen#' + faceGen + ' · 已保温 ' + held + 's';
+      stabDetail.innerHTML =
+        '<div>基准（已作废）：</div><div class="mono">' + fmt(baselineFaces) + '</div>' +
+        '<div style="margin-top:8px">当前：</div><div class="mono">' + fmt(cur) + '</div>' +
+        '<div style="margin-top:8px">' + (changeReason || note || '与基准不一致') + ' · 请重发火花。</div>';
+      holdPill.textContent = '脸已变';
+      holdPill.style.background = '#6f1f1f';
+      punchBtn.disabled = true;
+      return;
+    }
+    stabBanner.className = 'stab same';
+    stabBanner.textContent = '未变 · gen#' + faceGen + ' · 已保温 ' + held + 's · 上次核对 ' + age + 's 前';
+    stabDetail.innerHTML =
+      '<div>基准=当前：</div><div class="mono">' + fmt(baselineFaces) + '</div>' +
+      '<div class="hint" style="margin-top:8px">' + (note || '同一 PC 上 srflx 与锁定时一致') + ' · ' + UI + '</div>';
+  }
+
+  function lockBaseline(faces) {
+    baselineFaces = faces.slice();
+    baselineKey = faceKey(baselineFaces);
+    holdStartedAt = Date.now();
+    lastCheckAt = Date.now();
+    faceChanged = false;
+    changeReason = '';
+    paintStab(baselineFaces, '已锁定基准脸（本次保温）。');
+  }
+
+  function markChanged(faces, reason) {
+    faceChanged = true;
+    changeReason = reason || '脸与基准不一致';
+    if (faces && faces.length) lastFaces = faces.slice();
+    paintStab(lastFaces, changeReason);
+    renderFaces(lastFaces, 'face-change-detected');
+  }
+
   function buildSpark(faces, reason) {
-    const payload = {
+    return PREFIX + ' ' + JSON.stringify({
       v: 'holobit-spark/v1',
       role: 'phone',
       ts: Math.floor(Date.now() / 1000),
-      session: sessionSticky,
+      session: sessionId,
       reason: reason || 'pwa-hold',
       faces: faces,
       face_gen: faceGen,
-      held: !!(pc && faces.length),
+      held: !!(pc && faces.length && !faceChanged),
+      face_changed: faceChanged,
+      ui: UI,
       stun: [{ server: stunEl.value, ok: faces.length > 0 }],
-      note: 'ephemeral face; not a doorplate; spark!=data; refresh on every gather',
-      nonce: sessionId(),
+      note: 'ephemeral; spark!=data; refresh on gather',
+      nonce: randHex(8),
       pubkey: null
-    };
-    return PREFIX + ' ' + JSON.stringify(payload);
+    });
   }
-  function showFaces(faces, reason) {
-    lastFaces = faces;
+
+  function renderFaces(faces, reason) {
+    lastFaces = faces.slice();
     lastSpark = faces.length ? buildSpark(faces, reason) : '';
     facesEl.textContent = faces.length
-      ? ('gen#' + faceGen + ' (活)\n' + faces.join('\n'))
+      ? ('gen#' + faceGen + (faceChanged ? ' (已变)' : ' (活)') + '\n' + faces.join('\n'))
       : '（没有活脸）';
     shareBtn.disabled = !faces.length;
     copyBtn.disabled = !faces.length;
-    punchBtn.disabled = !(faces.length && pc);
+    confirmBtn.disabled = !(pc && baselineKey);
+    updatePunchEnabled();
   }
+
   function setHold(on) {
+    if (faceChanged) {
+      holdPill.textContent = '脸已变';
+      holdPill.style.background = '#6f1f1f';
+      return;
+    }
     holdPill.textContent = on ? '保温中' : '未保温';
     holdPill.style.background = on ? '#1f6f4a' : '#2a3140';
   }
+
+  function parseRooms(text) {
+    var out = [], re = /(\d{1,3}(?:\.\d{1,3}){3}):(\d{1,5})/g, m;
+    while ((m = re.exec(text || ''))) out.push(m[1] + ':' + m[2]);
+    return Array.from(new Set(out));
+  }
+
+  function updatePunchEnabled() {
+    punchBtn.disabled = !(lastFaces.length && pc && !faceChanged && parseRooms(roomFacesEl.value).length);
+  }
+
+  function stopStab() {
+    if (stabTimer) { clearInterval(stabTimer); stabTimer = null; }
+  }
+
   function closePc() {
-    stopPunch();
-    if (pc) { try { pc.close(); } catch (_) {} }
+    stopPunch(false);
+    stopStab();
+    if (pc) { try { pc.close(); } catch (e) {} }
     pc = null;
     setHold(false);
   }
-  function parseRoomFaces(text) {
-    const out = [];
-    const re = /(\d{1,3}(?:\.\d{1,3}){3}):(\d{1,5})/g;
-    let m;
-    while ((m = re.exec(text || ''))) out.push(m[1] + ':' + m[2]);
-    return [...new Set(out)];
-  }
-  function randIceChars(n) {
-    const alphabet = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789+/';
-    const a = new Uint8Array(n);
+
+  function randIce(n) {
+    var alphabet = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789+/';
+    var a = new Uint8Array(n);
     crypto.getRandomValues(a);
-    return Array.from(a, b => alphabet[b % alphabet.length]).join('');
-  }
-  function fakeFingerprint() {
-    const a = new Uint8Array(32);
-    crypto.getRandomValues(a);
-    return Array.from(a, b => b.toString(16).padStart(2, '0').toUpperCase()).join(':');
+    return Array.from(a, function (b) { return alphabet[b % alphabet.length]; }).join('');
   }
 
-  async function gather() {
+  function fakeFp() {
+    var a = new Uint8Array(32);
+    crypto.getRandomValues(a);
+    return Array.from(a, function (b) { return b.toString(16).padStart(2, '0').toUpperCase(); }).join(':');
+  }
+
+  function readSrflxStats() {
+    if (!pc) return Promise.resolve([]);
+    return pc.getStats().then(function (stats) {
+      var found = [];
+      stats.forEach(function (r) {
+        if (!r || r.type !== 'local-candidate') return;
+        var typ = String(r.candidateType || '').toLowerCase();
+        if (typ !== 'srflx' && typ !== 'relay') return;
+        var ip = r.address || r.ip || r.ipAddress;
+        var port = r.port;
+        if (ip && port) {
+          var face = ip + ':' + port;
+          if (found.indexOf(face) < 0) found.push(face);
+        }
+      });
+      return found;
+    }).catch(function () { return []; });
+  }
+
+  function checkStab(manual) {
+    if (!pc || !baselineKey || gathering) return Promise.resolve();
+    lastCheckAt = Date.now();
+    return readSrflxStats().then(function (fromStats) {
+      var baseSet = {};
+      baselineFaces.forEach(function (f) { baseSet[f] = true; });
+      if (fromStats.length) {
+        var extra = fromStats.filter(function (f) { return !baseSet[f]; });
+        var anyKnown = fromStats.some(function (f) { return baseSet[f]; });
+        if (extra.length || !anyKnown) {
+          markChanged(fromStats, manual
+            ? '只读确认：getStats 门牌与基准不同。'
+            : '定时核对：getStats 门牌与基准不同。');
+          return;
+        }
+      } else if (lastFaces.length && faceKey(lastFaces) !== baselineKey) {
+        markChanged(lastFaces, '当前广告脸与基准不同。');
+        return;
+      }
+      paintStab(baselineFaces, manual
+        ? '只读确认通过：与基准一致（未重采）。'
+        : '定时核对通过：与基准一致。');
+      setHold(true);
+    });
+  }
+
+  function startStab() {
+    stopStab();
+    stabTimer = setInterval(function () { checkStab(false); }, 5000);
+  }
+
+  function gather() {
     if (gathering) return;
     gathering = true;
-    stopPunch();
     closePc();
-    const uri = stunEl.value;
+    baselineFaces = [];
+    baselineKey = '';
+    holdStartedAt = 0;
+    faceChanged = false;
+    changeReason = '';
+    paintStab([], '采脸中，稍后锁定基准…');
+    var uri = stunEl.value;
     setStatus(statusEl, '采脸中… ' + uri);
-    showFaces([]);
+    renderFaces([], '');
     goBtn.disabled = true;
-    const found = [];
+    var found = [];
+    var finished = false;
+
     try {
       pc = new RTCPeerConnection({
         iceServers: [{ urls: [uri] }],
@@ -191,167 +350,174 @@ button:disabled{opacity:.5}
       gathering = false;
       return;
     }
-    try { pc.createDataChannel('holobit-face'); } catch (_) {}
-    pc.onicecandidate = (ev) => {
-      if (!ev.candidate) {
-        const uniq = [...new Set(found)];
-        if (uniq.length) faceGen += 1;
-        showFaces(uniq, faceGen > 1 ? 'face-change' : 'pwa-hold');
-        goBtn.disabled = false;
-        gathering = false;
-        if (uniq.length) {
-          setHold(true);
-          setStatus(statusEl, '采脸成功并保温中 gen#' + faceGen + '，共 ' + uniq.length + ' 个活脸。请立刻分享/复制新火花（旧火花已作废）。', 'ok');
-        } else {
-          setHold(false);
-          setStatus(statusEl, '没有公网活脸，可换 STUN 再试。', 'bad');
-        }
-        return;
+    try { pc.createDataChannel('holobit-face'); } catch (e) {}
+
+    function finish(why) {
+      if (finished) return;
+      finished = true;
+      gathering = false;
+      goBtn.disabled = false;
+      var uniq = Array.from(new Set(found));
+      if (uniq.length) faceGen += 1;
+      renderFaces(uniq, faceGen > 1 ? 'face-change' : 'pwa-hold');
+      if (uniq.length) {
+        setHold(true);
+        lockBaseline(uniq);
+        startStab();
+        setStatus(statusEl, '采脸成功并保温中 gen#' + faceGen + '（' + why + '）。基准已锁定；请立刻分享/复制新火花。', 'ok');
+      } else {
+        setHold(false);
+        setStatus(statusEl, '没有公网活脸，可换 STUN 再试。', 'bad');
+        paintStab([], '无活脸，未锁定基准。');
       }
-      const raw = ev.candidate.candidate || '';
-      const m = raw.match(/ ([0-9.]+) ([0-9]+) typ (srflx|relay)/);
+    }
+
+    pc.onicecandidate = function (ev) {
+      if (!ev.candidate) { finish('收集结束'); return; }
+      var raw = ev.candidate.candidate || '';
+      var m = raw.match(/ ([0-9.]+) ([0-9]+) typ (srflx|relay)/);
       if (m) {
-        const face = m[1] + ':' + m[2];
-        if (!found.includes(face)) {
+        var face = m[1] + ':' + m[2];
+        if (found.indexOf(face) < 0) {
           found.push(face);
-          showFaces([...found], 'pwa-hold');
+          facesEl.textContent = '采脸中…\n' + found.join('\n');
           setStatus(statusEl, '已找到活脸 ' + found.length + ' 个…', 'ok');
         }
       }
     };
-    try {
-      const offer = await pc.createOffer({ offerToReceiveAudio: true });
-      await pc.setLocalDescription(offer);
-    } catch (e) {
+
+    pc.createOffer({ offerToReceiveAudio: true }).then(function (offer) {
+      return pc.setLocalDescription(offer);
+    }).catch(function (e) {
       setStatus(statusEl, '创建失败：' + e, 'bad');
       goBtn.disabled = false;
       gathering = false;
       closePc();
-    }
-    setTimeout(() => {
-      if (gathering) {
-        gathering = false;
-        goBtn.disabled = false;
-        const uniq = [...new Set(found)];
-        if (uniq.length) faceGen += 1;
-        showFaces(uniq, faceGen > 1 ? 'face-change' : 'pwa-hold');
-        if (uniq.length) {
-          setHold(true);
-          setStatus(statusEl, '采脸超时结束，已保温 gen#' + faceGen + ' · ' + uniq.length + ' 个活脸。请重发火花。', 'ok');
-        } else {
-          setStatus(statusEl, '超时仍无公网活脸。', 'bad');
-        }
-      }
-    }, 12000);
+    });
+
+    setTimeout(function () { if (!finished) finish('超时'); }, 12000);
   }
 
-  async function startPunch() {
+  function startPunch() {
     if (!pc || !lastFaces.length) {
-      setStatus(punchStatusEl, '请先采脸并保温（必须同一 PeerConnection 活脸）。', 'bad');
+      setStatus(punchStatusEl, '请先采脸并保温（必须同一 PeerConnection）。', 'bad');
       return;
     }
-    const rooms = parseRoomFaces(roomFacesEl.value);
+    if (faceChanged) {
+      setStatus(punchStatusEl, '脸已变，请重新采脸并分享新火花后再戳。', 'bad');
+      return;
+    }
+    var rooms = parseRooms(roomFacesEl.value);
     if (!rooms.length) {
       setStatus(punchStatusEl, '请粘贴至少一个房间门牌。', 'bad');
       return;
     }
     stopPunch(false);
-    setStatus(punchStatusEl, '倒置对戳中 gen#' + faceGen + '：手机向外 → ' + rooms.length + ' 个房间活脸（请确认已分享本轮火花）…');
+    setStatus(punchStatusEl, '倒置对戳中 gen#' + faceGen + '：手机向外 → ' + rooms.length + ' 个房间…');
     punchBtn.disabled = true;
     stopPunchBtn.disabled = false;
 
-    // Ensure we have a local offer, then set a dummy remote answer and add room candidates.
-    // Browser will send STUN connectivity checks = phone→room punch packets.
-    try {
-      if (!pc.localDescription) {
-        const offer = await pc.createOffer({ offerToReceiveAudio: true });
-        await pc.setLocalDescription(offer);
-      }
-      if (!pc.remoteDescription) {
-        const ufrag = randIceChars(8);
-        const pwd = randIceChars(24);
-        const fp = fakeFingerprint();
-        const sdp = [
-          'v=0',
-          'o=- 0 0 IN IP4 0.0.0.0',
-          's=-',
-          't=0 0',
-          'a=group:BUNDLE 0',
-          'a=msid-semantic: WMS',
-          'm=application 9 UDP/DTLS/SCTP webrtc-datachannel',
-          'c=IN IP4 0.0.0.0',
-          'a=ice-ufrag:' + ufrag,
-          'a=ice-pwd:' + pwd,
-          'a=fingerprint:sha-256 ' + fp,
-          'a=setup:active',
-          'a=mid:0',
-          'a=sctp-port:5000',
-          'a=max-message-size:262144'
-        ].join('\r\n') + '\r\n';
-        await pc.setRemoteDescription({ type: 'answer', sdp: sdp });
-      }
-      let i = 0;
-      for (const face of rooms) {
-        const [ip, port] = face.split(':');
-        const cand = 'candidate:' + (1000 + i) + ' 1 UDP 1686052607 ' + ip + ' ' + port + ' typ srflx raddr 0.0.0.0 rport 0 generation 0';
-        try {
-          await pc.addIceCandidate({ candidate: cand, sdpMid: '0', sdpMLineIndex: 0 });
-        } catch (e) {
-          // keep going; some browsers reject duplicates
-        }
+    var chain = Promise.resolve();
+    if (!pc.localDescription) {
+      chain = chain.then(function () {
+        return pc.createOffer({ offerToReceiveAudio: true }).then(function (o) {
+          return pc.setLocalDescription(o);
+        });
+      });
+    }
+    chain = chain.then(function () {
+      if (pc.remoteDescription) return;
+      var sdp = [
+        'v=0',
+        'o=- 0 0 IN IP4 0.0.0.0',
+        's=-',
+        't=0 0',
+        'a=group:BUNDLE 0',
+        'a=msid-semantic: WMS',
+        'm=application 9 UDP/DTLS/SCTP webrtc-datachannel',
+        'c=IN IP4 0.0.0.0',
+        'a=ice-ufrag:' + randIce(8),
+        'a=ice-pwd:' + randIce(24),
+        'a=fingerprint:sha-256 ' + fakeFp(),
+        'a=setup:active',
+        'a=mid:0',
+        'a=sctp-port:5000',
+        'a=max-message-size:262144'
+      ].join('\r\n') + '\r\n';
+      return pc.setRemoteDescription({ type: 'answer', sdp: sdp });
+    }).then(function () {
+      var i = 0;
+      var add = Promise.resolve();
+      rooms.forEach(function (face) {
+        var parts = face.split(':');
+        var cand = 'candidate:' + (1000 + i) + ' 1 UDP 1686052607 ' + parts[0] + ' ' + parts[1] +
+          ' typ srflx raddr 0.0.0.0 rport 0 generation 0';
         i += 1;
-      }
-    } catch (e) {
+        add = add.then(function () {
+          return pc.addIceCandidate({ candidate: cand, sdpMid: '0', sdpMLineIndex: 0 }).catch(function () {});
+        });
+      });
+      return add;
+    }).then(function () {
+      var ticks = 0;
+      punchTimer = setInterval(function () {
+        ticks += 1;
+        var st = (pc && (pc.iceConnectionState || pc.connectionState)) || '?';
+        setStatus(
+          punchStatusEl,
+          '对戳中 ' + ticks + 's · ICE=' + st + ' · 目标 ' + rooms.join(', '),
+          (st === 'connected' || st === 'completed') ? 'ok' : ''
+        );
+        if (ticks >= 60) stopPunch();
+      }, 1000);
+    }).catch(function (e) {
       setStatus(punchStatusEl, '对戳启动失败：' + e, 'bad');
       punchBtn.disabled = false;
       stopPunchBtn.disabled = true;
-      return;
-    }
-
-    let ticks = 0;
-    punchTimer = setInterval(() => {
-      ticks += 1;
-      const st = (pc && (pc.iceConnectionState || pc.connectionState)) || '?';
-      setStatus(
-        punchStatusEl,
-        '对戳中 ' + ticks + 's · ICE=' + st + ' · 目标 ' + rooms.join(', '),
-        st === 'connected' || st === 'completed' ? 'ok' : ''
-      );
-      if (ticks >= 60) stopPunch();
-    }, 1000);
+    });
   }
 
   function stopPunch(updateUi) {
     if (punchTimer) { clearInterval(punchTimer); punchTimer = null; }
     stopPunchBtn.disabled = true;
-    punchBtn.disabled = !(lastFaces.length && pc);
-    if (updateUi !== false) {
-      setStatus(punchStatusEl, '已停止对戳。可改门牌后再点开始。');
-    }
+    updatePunchEnabled();
+    if (updateUi !== false) setStatus(punchStatusEl, '已停止对戳。可改门牌后再点开始。');
   }
 
-  shareBtn.onclick = async () => {
-    if (!lastSpark) return;
-    if (navigator.share) {
-      try { await navigator.share({ text: lastSpark }); return; } catch (e) { if (e && e.name === 'AbortError') return; }
-    }
-    try { await navigator.clipboard.writeText(lastSpark); setStatus(statusEl, '已复制火花', 'ok'); }
-    catch (_) { setStatus(statusEl, '请长按复制', 'bad'); }
-  };
-  copyBtn.onclick = async () => {
-    if (!lastSpark) return;
-    try { await navigator.clipboard.writeText(lastSpark); setStatus(statusEl, '火花已复制', 'ok'); }
-    catch (_) { setStatus(statusEl, '复制失败', 'bad'); }
-  };
+  function copyOrShare(share) {
+    if (!lastFaces.length) return;
+    lastSpark = buildSpark(lastFaces, faceChanged ? 'face-changed' : 'pwa-hold');
+    var p = share && navigator.share
+      ? navigator.share({ text: lastSpark }).catch(function (e) {
+          if (e && e.name === 'AbortError') return null;
+          return navigator.clipboard.writeText(lastSpark).then(function () { return 'copied'; });
+        })
+      : navigator.clipboard.writeText(lastSpark).then(function () { return 'copied'; });
+    Promise.resolve(p).then(function (r) {
+      if (r === 'copied') setStatus(statusEl, share ? '已复制火花（无法直接分享）' : '火花已复制', 'ok');
+    }).catch(function () {
+      setStatus(statusEl, '请长按复制', 'bad');
+    });
+  }
+
   goBtn.onclick = gather;
+  shareBtn.onclick = function () { copyOrShare(true); };
+  copyBtn.onclick = function () { copyOrShare(false); };
   punchBtn.onclick = startPunch;
-  stopPunchBtn.onclick = () => stopPunch();
-  roomFacesEl.addEventListener('input', () => {
-    punchBtn.disabled = !(lastFaces.length && pc && parseRoomFaces(roomFacesEl.value).length);
+  stopPunchBtn.onclick = function () { stopPunch(); };
+  confirmBtn.onclick = function () { checkStab(true); };
+  roomFacesEl.addEventListener('input', updatePunchEnabled);
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) {
+      setStatus(statusEl, (statusEl.textContent || '') + '（页在后台，保温可能变弱）');
+    } else if (baselineKey && pc) {
+      checkStab(false);
+    }
   });
-  document.addEventListener('visibilitychange', () => {
-    if (document.hidden) setStatus(statusEl, (statusEl.textContent || '') + '（页在后台，保温可能变弱）');
-  });
+  setInterval(function () {
+    if (baselineKey && !faceChanged) paintStab(baselineFaces);
+  }, 1000);
+
   gather();
 })();
 </script>

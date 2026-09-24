@@ -1,34 +1,25 @@
 # HoloBit 采脸 — 主屏幕 / 快捷指令
 
-## 手机网址（裸连优先试）
+## 手机网址（请用 v4，带稳定仪表）
 
-1. `https://cdn.jsdelivr.net/gh/holobit79-pixel/holobit-face-pwa@master/index.html`
-2. 备用：`https://fastly.jsdelivr.net/gh/holobit79-pixel/holobit-face-pwa@master/index.html`
-3. 再备用：`https://gcore.jsdelivr.net/gh/holobit79-pixel/holobit-face-pwa@master/index.html`
+1. `https://holobit79-pixel.github.io/holobit-face-pwa/?v=4`
+2. 备用钉死提交（防旧缓存）：推送后以仓库最新 commit 为准
 
-必须用 **Safari** 打开（不要用微信内置浏览器）。
+必须用 **Safari** 打开（不要用微信内置浏览器）。打开后应看到：
+- 标题旁「保温中 / 未保温」
+- 「脸稳定仪表」：未变 / 端口/脸已变
+- 按钮「只读确认（不重采）」
 
 ## 加到主屏幕
 
-Safari 底部分享 → 添加到主屏幕 → 添加。桌面图标名「HoloBit脸」。
+Safari 底部分享 → 添加到主屏幕。快捷方式请指向带 `?v=4` 的地址。
 
-## 快捷指令（一键打开）
+## 日常
 
-1. 打开「快捷指令」App → 右上角「+」
-2. 添加操作 → 搜索「打开 URL」
-3. URL 填上面第 1 条
-4. 点右上角完成，名字改成「HoloBit采脸」
-5. 可选：详情里打开「添加到主屏幕」
+1. 打开自动采脸 → 仪表「未变 · gen#N · 已保温 Xs」
+2. **不要**为了确认去点「重新采脸」（会换端口）
+3. 看仪表，或点「只读确认（不重采）」
+4. 变红「端口/脸已变」→ 旧火花作废，重新分享
+5. 分享/复制火花发给房间侧
 
-## 日常怎么用
-
-打开后自动采脸 → 有公网门牌后点「分享到微信」→ 选微信 → 发给 ClawBot/Hub 机器人（火花，不当聊天指挥）。
-也可「复制火花」贴到电脑 Scout。
-
-源码仓库：https://github.com/holobit79-pixel/holobit-face-pwa
-
-## 倒置提醒（短命脸）
-
-- 每次点「重新采脸并保温」，**端口通常会变**（IP 可能不变）→ **已证**。
-- 采完必须立刻「分享/复制新火花」；旧火花里的端口作废。
-- 对戳只在「保温中」且火花与屏上活脸一致时有效。
+源码：https://github.com/holobit79-pixel/holobit-face-pwa
