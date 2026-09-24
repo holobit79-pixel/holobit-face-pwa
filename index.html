@@ -14,29 +14,30 @@
 :root{--bg:#0f1115;--card:#1a1e26;--txt:#f2f4f8;--muted:#9aa3b2;--acc:#5b8cff;--ok:#3dd68c;--bad:#ff6b6b}
 *{box-sizing:border-box}
 body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--bg);color:var(--txt);line-height:1.45}
-main{max-width:560px;margin:0 auto;padding:20px 16px 40px}
+main{max-width:560px;margin:0 auto;padding:20px 16px 48px}
 h1{font-size:1.35rem;margin:8px 0 4px}
 .sub{color:var(--muted);font-size:.95rem;margin:0 0 16px}
 .card{background:var(--card);border-radius:14px;padding:14px;margin:12px 0}
 label{display:block;font-size:.85rem;color:var(--muted);margin-bottom:6px}
-select,input{width:100%;padding:12px;border-radius:10px;border:1px solid #2a3140;background:#12151c;color:var(--txt);font-size:1rem}
+select,input,textarea{width:100%;padding:12px;border-radius:10px;border:1px solid #2a3140;background:#12151c;color:var(--txt);font-size:1rem}
+textarea{min-height:96px;font-family:ui-monospace,Menlo,monospace;font-size:.9rem}
 .row{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
 button{flex:1;min-width:120px;border:0;border-radius:12px;padding:14px 12px;font-size:1.05rem;font-weight:600;background:var(--acc);color:#fff}
 button.secondary{background:#2a3140}
 button:disabled{opacity:.5}
-#status{font-size:.95rem;margin-top:8px}
-#status.ok{color:var(--ok)}
-#status.bad{color:var(--bad)}
-#faces{white-space:pre-wrap;word-break:break-all;font-family:ui-monospace,Menlo,monospace;font-size:.92rem;min-height:3.5rem}
+#status,#punchStatus{font-size:.95rem;margin-top:8px}
+.ok{color:var(--ok)} .bad{color:var(--bad)}
+#faces{white-space:pre-wrap;word-break:break-all;font-family:ui-monospace,Menlo,monospace;font-size:.92rem;min-height:3.2rem}
 .hint{font-size:.88rem;color:var(--muted);margin-top:10px}
 .steps{font-size:.9rem;color:var(--muted);padding-left:1.1rem}
 .steps li{margin:4px 0}
+.pill{display:inline-block;padding:2px 8px;border-radius:999px;background:#2a3140;font-size:.8rem;margin-left:6px}
 </style>
 </head>
 <body>
 <main>
-  <h1>HoloBit 采脸</h1>
-  <p class="sub">打开即采。日常用法：自动取公网门牌，一键分享到微信当火花（不当 VPN）。</p>
+  <h1>HoloBit 采脸 <span id="holdPill" class="pill">未保温</span></h1>
+  <p class="sub">打开即采并保温。可粘贴房间门牌后双边对戳（网页用 ICE 检查发包，不当 VPN）。</p>
 
   <div class="card">
     <label for="stun">STUN（国内优先）</label>
@@ -48,25 +49,35 @@ button:disabled{opacity:.5}
       <option value="stun:stun.l.google.com:19302">Google（国内常不通）</option>
     </select>
     <div class="row">
-      <button id="go" type="button">重新采脸</button>
-      <button id="share" class="secondary" type="button" disabled>分享到微信</button>
+      <button id="go" type="button">重新采脸并保温</button>
+      <button id="share" class="secondary" type="button" disabled>分享火花</button>
       <button id="copy" class="secondary" type="button" disabled>复制火花</button>
     </div>
     <div id="status">准备中…</div>
   </div>
 
   <div class="card">
-    <label>公网门牌</label>
+    <label>我的公网门牌（保温中请勿关页）</label>
     <div id="faces">（还没有）</div>
-    <p class="hint">只要出现公网 IP:端口 就算采脸成功。页面上的「未连接」之类可以忽略。</p>
+  </div>
+
+  <div class="card">
+    <label for="roomFaces">房间门牌（Scout 发给你的，一行一个 IP:端口）</label>
+    <textarea id="roomFaces" placeholder="例如：&#10;44.219.165.130:20969&#10;32.192.139.229:44770"></textarea>
+    <div class="row">
+      <button id="punch" type="button" disabled>开始对戳</button>
+      <button id="stopPunch" class="secondary" type="button" disabled>停止对戳</button>
+    </div>
+    <div id="punchStatus">先采脸保温，再粘贴房间门牌。</div>
+    <p class="hint">对戳时手机会向房间门牌发 ICE/STUN 探测；请保持本页在前台约 1 分钟。</p>
   </div>
 
   <div class="card">
     <label>第一次装到主屏幕</label>
     <ol class="steps">
-      <li>用 <b>Safari</b> 打开本页（不要用微信内置浏览器）。</li>
-      <li>点底部分享 → <b>添加到主屏幕</b> → 添加。</li>
-      <li>以后点桌面「HoloBit脸」即可；也可用「快捷指令」一键打开本页。</li>
+      <li>用 Safari 打开本页。</li>
+      <li>底部分享 → 添加到主屏幕。</li>
+      <li>快捷指令可用「打开 URL」指向本页。</li>
     </ol>
   </div>
 </main>
@@ -75,144 +86,263 @@ button:disabled{opacity:.5}
   const PREFIX = 'HOLObit-SPARK';
   const stunEl = document.getElementById('stun');
   const statusEl = document.getElementById('status');
+  const punchStatusEl = document.getElementById('punchStatus');
   const facesEl = document.getElementById('faces');
+  const roomFacesEl = document.getElementById('roomFaces');
+  const holdPill = document.getElementById('holdPill');
   const goBtn = document.getElementById('go');
   const shareBtn = document.getElementById('share');
   const copyBtn = document.getElementById('copy');
+  const punchBtn = document.getElementById('punch');
+  const stopPunchBtn = document.getElementById('stopPunch');
+
+  let pc = null;
   let lastFaces = [];
   let lastSpark = '';
+  let punchTimer = null;
+  let gathering = false;
 
-  function setStatus(text, kind) {
-    statusEl.textContent = text;
-    statusEl.className = kind || '';
+  function setStatus(el, text, kind) {
+    el.textContent = text;
+    el.className = kind || '';
   }
-
   function sessionId() {
     const a = new Uint8Array(8);
     crypto.getRandomValues(a);
     return Array.from(a, b => b.toString(16).padStart(2, '0')).join('');
   }
-
   function buildSpark(faces) {
     const payload = {
       v: 'holobit-spark/v1',
       role: 'phone',
       ts: Math.floor(Date.now() / 1000),
       session: sessionId(),
-      reason: 'pwa-auto',
+      reason: 'pwa-hold',
       faces: faces,
       stun: [{ server: stunEl.value, ok: faces.length > 0 }],
-      note: 'spark!=data; from HoloBit face PWA',
+      note: 'spark!=data; PWA hold+ICE punch',
       nonce: sessionId(),
       pubkey: null
     };
     return PREFIX + ' ' + JSON.stringify(payload);
   }
-
   function showFaces(faces) {
     lastFaces = faces;
     lastSpark = faces.length ? buildSpark(faces) : '';
     facesEl.textContent = faces.length ? faces.join('\n') : '（没有公网门牌）';
     shareBtn.disabled = !faces.length;
     copyBtn.disabled = !faces.length;
+    punchBtn.disabled = !(faces.length && pc);
+  }
+  function setHold(on) {
+    holdPill.textContent = on ? '保温中' : '未保温';
+    holdPill.style.background = on ? '#1f6f4a' : '#2a3140';
+  }
+  function closePc() {
+    stopPunch();
+    if (pc) { try { pc.close(); } catch (_) {} }
+    pc = null;
+    setHold(false);
+  }
+  function parseRoomFaces(text) {
+    const out = [];
+    const re = /(\d{1,3}(?:\.\d{1,3}){3}):(\d{1,5})/g;
+    let m;
+    while ((m = re.exec(text || ''))) out.push(m[1] + ':' + m[2]);
+    return [...new Set(out)];
+  }
+  function randIceChars(n) {
+    const alphabet = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789+/';
+    const a = new Uint8Array(n);
+    crypto.getRandomValues(a);
+    return Array.from(a, b => alphabet[b % alphabet.length]).join('');
+  }
+  function fakeFingerprint() {
+    const a = new Uint8Array(32);
+    crypto.getRandomValues(a);
+    return Array.from(a, b => b.toString(16).padStart(2, '0').toUpperCase()).join(':');
   }
 
-  function gather() {
+  async function gather() {
+    if (gathering) return;
+    gathering = true;
+    stopPunch();
+    closePc();
     const uri = stunEl.value;
-    setStatus('采脸中… ' + uri);
+    setStatus(statusEl, '采脸中… ' + uri);
     showFaces([]);
     goBtn.disabled = true;
-    let pc;
     const found = [];
-    const rawLines = [];
     try {
       pc = new RTCPeerConnection({
         iceServers: [{ urls: [uri] }],
-        iceCandidatePoolSize: 4
+        iceCandidatePoolSize: 8
       });
     } catch (e) {
-      setStatus('浏览器不支持 WebRTC：' + e, 'bad');
+      setStatus(statusEl, '不支持 WebRTC：' + e, 'bad');
       goBtn.disabled = false;
+      gathering = false;
       return;
     }
     try { pc.createDataChannel('holobit-face'); } catch (_) {}
-
-    const finish = (why) => {
-      try { pc.close(); } catch (_) {}
-      goBtn.disabled = false;
-      const uniq = [...new Set(found)];
-      showFaces(uniq);
-      if (uniq.length) setStatus('采脸成功（' + why + '）共 ' + uniq.length + ' 个门牌', 'ok');
-      else setStatus('没有公网门牌。可换上面的 STUN 再试。', 'bad');
-    };
-
     pc.onicecandidate = (ev) => {
       if (!ev.candidate) {
-        finish('收集结束');
+        const uniq = [...new Set(found)];
+        showFaces(uniq);
+        goBtn.disabled = false;
+        gathering = false;
+        if (uniq.length) {
+          setHold(true);
+          setStatus(statusEl, '采脸成功并保温中，共 ' + uniq.length + ' 个门牌。请勿关页。', 'ok');
+        } else {
+          setHold(false);
+          setStatus(statusEl, '没有公网门牌，可换 STUN 再试。', 'bad');
+        }
         return;
       }
       const raw = ev.candidate.candidate || '';
-      rawLines.push(raw);
       const m = raw.match(/ ([0-9.]+) ([0-9]+) typ (srflx|relay)/);
       if (m) {
         const face = m[1] + ':' + m[2];
         if (!found.includes(face)) {
           found.push(face);
           showFaces([...found]);
-          setStatus('已找到门牌 ' + found.length + ' 个…', 'ok');
+          setStatus(statusEl, '已找到门牌 ' + found.length + ' 个…', 'ok');
         }
       }
     };
-    pc.onicecandidateerror = (ev) => {
-      rawLines.push('err ' + (ev.url || '') + ' ' + (ev.errorCode || '') + ' ' + (ev.errorText || ''));
-    };
-
-    pc.createOffer({ offerToReceiveAudio: true })
-      .then((offer) => pc.setLocalDescription(offer))
-      .catch((e) => {
-        setStatus('创建失败：' + e, 'bad');
-        goBtn.disabled = false;
-      });
-
+    try {
+      const offer = await pc.createOffer({ offerToReceiveAudio: true });
+      await pc.setLocalDescription(offer);
+    } catch (e) {
+      setStatus(statusEl, '创建失败：' + e, 'bad');
+      goBtn.disabled = false;
+      gathering = false;
+      closePc();
+    }
     setTimeout(() => {
-      if (goBtn.disabled) finish('超时');
-    }, 10000);
+      if (gathering) {
+        gathering = false;
+        goBtn.disabled = false;
+        const uniq = [...new Set(found)];
+        showFaces(uniq);
+        if (uniq.length) {
+          setHold(true);
+          setStatus(statusEl, '采脸超时结束，已保温 ' + uniq.length + ' 个门牌。', 'ok');
+        } else {
+          setStatus(statusEl, '超时仍无公网门牌。', 'bad');
+        }
+      }
+    }, 12000);
+  }
+
+  async function startPunch() {
+    if (!pc || !lastFaces.length) {
+      setStatus(punchStatusEl, '请先采脸并保温。', 'bad');
+      return;
+    }
+    const rooms = parseRoomFaces(roomFacesEl.value);
+    if (!rooms.length) {
+      setStatus(punchStatusEl, '请粘贴至少一个房间门牌。', 'bad');
+      return;
+    }
+    stopPunch(false);
+    setStatus(punchStatusEl, '对戳中：向 ' + rooms.length + ' 个房间门牌发 ICE 探测…');
+    punchBtn.disabled = true;
+    stopPunchBtn.disabled = false;
+
+    // Ensure we have a local offer, then set a dummy remote answer and add room candidates.
+    // Browser will send STUN connectivity checks = phone→room punch packets.
+    try {
+      if (!pc.localDescription) {
+        const offer = await pc.createOffer({ offerToReceiveAudio: true });
+        await pc.setLocalDescription(offer);
+      }
+      if (!pc.remoteDescription) {
+        const ufrag = randIceChars(8);
+        const pwd = randIceChars(24);
+        const fp = fakeFingerprint();
+        const sdp = [
+          'v=0',
+          'o=- 0 0 IN IP4 0.0.0.0',
+          's=-',
+          't=0 0',
+          'a=group:BUNDLE 0',
+          'a=msid-semantic: WMS',
+          'm=application 9 UDP/DTLS/SCTP webrtc-datachannel',
+          'c=IN IP4 0.0.0.0',
+          'a=ice-ufrag:' + ufrag,
+          'a=ice-pwd:' + pwd,
+          'a=fingerprint:sha-256 ' + fp,
+          'a=setup:active',
+          'a=mid:0',
+          'a=sctp-port:5000',
+          'a=max-message-size:262144'
+        ].join('\r\n') + '\r\n';
+        await pc.setRemoteDescription({ type: 'answer', sdp: sdp });
+      }
+      let i = 0;
+      for (const face of rooms) {
+        const [ip, port] = face.split(':');
+        const cand = 'candidate:' + (1000 + i) + ' 1 UDP 1686052607 ' + ip + ' ' + port + ' typ srflx raddr 0.0.0.0 rport 0 generation 0';
+        try {
+          await pc.addIceCandidate({ candidate: cand, sdpMid: '0', sdpMLineIndex: 0 });
+        } catch (e) {
+          // keep going; some browsers reject duplicates
+        }
+        i += 1;
+      }
+    } catch (e) {
+      setStatus(punchStatusEl, '对戳启动失败：' + e, 'bad');
+      punchBtn.disabled = false;
+      stopPunchBtn.disabled = true;
+      return;
+    }
+
+    let ticks = 0;
+    punchTimer = setInterval(() => {
+      ticks += 1;
+      const st = (pc && (pc.iceConnectionState || pc.connectionState)) || '?';
+      setStatus(
+        punchStatusEl,
+        '对戳中 ' + ticks + 's · ICE=' + st + ' · 目标 ' + rooms.join(', '),
+        st === 'connected' || st === 'completed' ? 'ok' : ''
+      );
+      if (ticks >= 60) stopPunch();
+    }, 1000);
+  }
+
+  function stopPunch(updateUi) {
+    if (punchTimer) { clearInterval(punchTimer); punchTimer = null; }
+    stopPunchBtn.disabled = true;
+    punchBtn.disabled = !(lastFaces.length && pc);
+    if (updateUi !== false) {
+      setStatus(punchStatusEl, '已停止对戳。可改门牌后再点开始。');
+    }
   }
 
   shareBtn.onclick = async () => {
     if (!lastSpark) return;
     if (navigator.share) {
-      try {
-        await navigator.share({ text: lastSpark });
-        setStatus('已调起分享；请选微信发给 ClawBot/Hub 机器人', 'ok');
-        return;
-      } catch (e) {
-        if (e && e.name === 'AbortError') return;
-      }
+      try { await navigator.share({ text: lastSpark }); return; } catch (e) { if (e && e.name === 'AbortError') return; }
     }
-    try {
-      await navigator.clipboard.writeText(lastSpark);
-      setStatus('当前环境不能直接分享，已复制火花，请粘贴到微信机器人对话', 'ok');
-    } catch (_) {
-      setStatus('请长按门牌或火花手动复制', 'bad');
-    }
+    try { await navigator.clipboard.writeText(lastSpark); setStatus(statusEl, '已复制火花', 'ok'); }
+    catch (_) { setStatus(statusEl, '请长按复制', 'bad'); }
   };
-
   copyBtn.onclick = async () => {
     if (!lastSpark) return;
-    try {
-      await navigator.clipboard.writeText(lastSpark);
-      setStatus('火花已复制。也可贴到电脑 Scout 聊天。', 'ok');
-    } catch (_) {
-      setStatus('复制失败，请长按文字手动复制', 'bad');
-    }
+    try { await navigator.clipboard.writeText(lastSpark); setStatus(statusEl, '火花已复制', 'ok'); }
+    catch (_) { setStatus(statusEl, '复制失败', 'bad'); }
   };
-
   goBtn.onclick = gather;
-  stunEl.onchange = gather;
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('./sw.js').catch(() => {});
-  }
+  punchBtn.onclick = startPunch;
+  stopPunchBtn.onclick = () => stopPunch();
+  roomFacesEl.addEventListener('input', () => {
+    punchBtn.disabled = !(lastFaces.length && pc && parseRoomFaces(roomFacesEl.value).length);
+  });
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) setStatus(statusEl, (statusEl.textContent || '') + '（页在后台，保温可能变弱）');
+  });
   gather();
 })();
 </script>
