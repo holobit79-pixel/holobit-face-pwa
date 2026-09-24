@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="apple-mobile-web-app-title" content="HoloBit脸"/>
+<meta name="mobile-web-app-capable" content="yes"/>
+<meta name="theme-color" content="#111111"/>
+<title>HoloBit 采脸</title>
+<link rel="manifest" href="manifest.webmanifest"/>
+<style>
+:root{--bg:#0f1115;--card:#1a1e26;--txt:#f2f4f8;--muted:#9aa3b2;--acc:#5b8cff;--ok:#3dd68c;--bad:#ff6b6b}
+*{box-sizing:border-box}
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--bg);color:var(--txt);line-height:1.45}
+main{max-width:560px;margin:0 auto;padding:20px 16px 40px}
+h1{font-size:1.35rem;margin:8px 0 4px}
+.sub{color:var(--muted);font-size:.95rem;margin:0 0 16px}
+.card{background:var(--card);border-radius:14px;padding:14px;margin:12px 0}
+label{display:block;font-size:.85rem;color:var(--muted);margin-bottom:6px}
+select,input{width:100%;padding:12px;border-radius:10px;border:1px solid #2a3140;background:#12151c;color:var(--txt);font-size:1rem}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+button{flex:1;min-width:120px;border:0;border-radius:12px;padding:14px 12px;font-size:1.05rem;font-weight:600;background:var(--acc);color:#fff}
+button.secondary{background:#2a3140}
+button:disabled{opacity:.5}
+#status{font-size:.95rem;margin-top:8px}
+#status.ok{color:var(--ok)}
+#status.bad{color:var(--bad)}
+#faces{white-space:pre-wrap;word-break:break-all;font-family:ui-monospace,Menlo,monospace;font-size:.92rem;min-height:3.5rem}
+.hint{font-size:.88rem;color:var(--muted);margin-top:10px}
+.steps{font-size:.9rem;color:var(--muted);padding-left:1.1rem}
+.steps li{margin:4px 0}
+</style>
+</head>
+<body>
+<main>
+  <h1>HoloBit 采脸</h1>
+  <p class="sub">打开即采。日常用法：自动取公网门牌，一键分享到微信当火花（不当 VPN）。</p>
+
+  <div class="card">
+    <label for="stun">STUN（国内优先）</label>
+    <select id="stun">
+      <option value="stun:stun.miwifi.com:3478">小米 stun.miwifi.com</option>
+      <option value="stun:stun.qq.com:3478">腾讯 stun.qq.com</option>
+      <option value="stun:stun.chat.bilibili.com:3478">B站 stun.chat.bilibili.com</option>
+      <option value="stun:stun.douyucdn.cn:18000">斗鱼 stun.douyucdn.cn</option>
+      <option value="stun:stun.l.google.com:19302">Google（国内常不通）</option>
+    </select>
+    <div class="row">
+      <button id="go" type="button">重新采脸</button>
+      <button id="share" class="secondary" type="button" disabled>分享到微信</button>
+      <button id="copy" class="secondary" type="button" disabled>复制火花</button>
+    </div>
+    <div id="status">准备中…</div>
+  </div>
+
+  <div class="card">
+    <label>公网门牌</label>
+    <div id="faces">（还没有）</div>
+    <p class="hint">只要出现公网 IP:端口 就算采脸成功。页面上的「未连接」之类可以忽略。</p>
+  </div>
+
+  <div class="card">
+    <label>第一次装到主屏幕</label>
+    <ol class="steps">
+      <li>用 <b>Safari</b> 打开本页（不要用微信内置浏览器）。</li>
+      <li>点底部分享 → <b>添加到主屏幕</b> → 添加。</li>
+      <li>以后点桌面「HoloBit脸」即可；也可用「快捷指令」一键打开本页。</li>
+    </ol>
+  </div>
+</main>
+<script>
+(function () {
+  const PREFIX = 'HOLObit-SPARK';
+  const stunEl = document.getElementById('stun');
+  const statusEl = document.getElementById('status');
+  const facesEl = document.getElementById('faces');
+  const goBtn = document.getElementById('go');
+  const shareBtn = document.getElementById('share');
+  const copyBtn = document.getElementById('copy');
+  let lastFaces = [];
+  let lastSpark = '';
+
+  function setStatus(text, kind) {
+    statusEl.textContent = text;
+    statusEl.className = kind || '';
+  }
+
+  function sessionId() {
+    const a = new Uint8Array(8);
+    crypto.getRandomValues(a);
+    return Array.from(a, b => b.toString(16).padStart(2, '0')).join('');
+  }
+
+  function buildSpark(faces) {
+    const payload = {
+      v: 'holobit-spark/v1',
+      role: 'phone',
+      ts: Math.floor(Date.now() / 1000),
+      session: sessionId(),
+      reason: 'pwa-auto',
+      faces: faces,
+      stun: [{ server: stunEl.value, ok: faces.length > 0 }],
+      note: 'spark!=data; from HoloBit face PWA',
+      nonce: sessionId(),
+      pubkey: null
+    };
+    return PREFIX + ' ' + JSON.stringify(payload);
+  }
+
+  function showFaces(faces) {
+    lastFaces = faces;
+    lastSpark = faces.length ? buildSpark(faces) : '';
+    facesEl.textContent = faces.length ? faces.join('\n') : '（没有公网门牌）';
+    shareBtn.disabled = !faces.length;
+    copyBtn.disabled = !faces.length;
+  }
+
+  function gather() {
+    const uri = stunEl.value;
+    setStatus('采脸中… ' + uri);
+    showFaces([]);
+    goBtn.disabled = true;
+    let pc;
+    const found = [];
+    const rawLines = [];
+    try {
+      pc = new RTCPeerConnection({
+        iceServers: [{ urls: [uri] }],
+        iceCandidatePoolSize: 4
+      });
+    } catch (e) {
+      setStatus('浏览器不支持 WebRTC：' + e, 'bad');
+      goBtn.disabled = false;
+      return;
+    }
+    try { pc.createDataChannel('holobit-face'); } catch (_) {}
+
+    const finish = (why) => {
+      try { pc.close(); } catch (_) {}
+      goBtn.disabled = false;
+      const uniq = [...new Set(found)];
+      showFaces(uniq);
+      if (uniq.length) setStatus('采脸成功（' + why + '）共 ' + uniq.length + ' 个门牌', 'ok');
+      else setStatus('没有公网门牌。可换上面的 STUN 再试。', 'bad');
+    };
+
+    pc.onicecandidate = (ev) => {
+      if (!ev.candidate) {
+        finish('收集结束');
+        return;
+      }
+      const raw = ev.candidate.candidate || '';
+      rawLines.push(raw);
+      const m = raw.match(/ ([0-9.]+) ([0-9]+) typ (srflx|relay)/);
+      if (m) {
+        const face = m[1] + ':' + m[2];
+        if (!found.includes(face)) {
+          found.push(face);
+          showFaces([...found]);
+          setStatus('已找到门牌 ' + found.length + ' 个…', 'ok');
+        }
+      }
+    };
+    pc.onicecandidateerror = (ev) => {
+      rawLines.push('err ' + (ev.url || '') + ' ' + (ev.errorCode || '') + ' ' + (ev.errorText || ''));
+    };
+
+    pc.createOffer({ offerToReceiveAudio: true })
+      .then((offer) => pc.setLocalDescription(offer))
+      .catch((e) => {
+        setStatus('创建失败：' + e, 'bad');
+        goBtn.disabled = false;
+      });
+
+    setTimeout(() => {
+      if (goBtn.disabled) finish('超时');
+    }, 10000);
+  }
+
+  shareBtn.onclick = async () => {
+    if (!lastSpark) return;
+    if (navigator.share) {
+      try {
+        await navigator.share({ text: lastSpark });
+        setStatus('已调起分享；请选微信发给 ClawBot/Hub 机器人', 'ok');
+        return;
+      } catch (e) {
+        if (e && e.name === 'AbortError') return;
+      }
+    }
+    try {
+      await navigator.clipboard.writeText(lastSpark);
+      setStatus('当前环境不能直接分享，已复制火花，请粘贴到微信机器人对话', 'ok');
+    } catch (_) {
+      setStatus('请长按门牌或火花手动复制', 'bad');
+    }
+  };
+
+  copyBtn.onclick = async () => {
+    if (!lastSpark) return;
+    try {
+      await navigator.clipboard.writeText(lastSpark);
+      setStatus('火花已复制。也可贴到电脑 Scout 聊天。', 'ok');
+    } catch (_) {
+      setStatus('复制失败，请长按文字手动复制', 'bad');
+    }
+  };
+
+  goBtn.onclick = gather;
+  stunEl.onchange = gather;
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('./sw.js').catch(() => {});
+  }
+  gather();
+})();
+</script>
+</body>
+</html>
